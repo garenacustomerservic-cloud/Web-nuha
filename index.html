@@ -685,21 +685,30 @@ function kirimPesan(){const n=gv('kn'),p=gv('km');if(!n){toast('⚠️ Nama waji
 let lapCat='',lapPrio='';
 function selCat(el,c){document.querySelectorAll('.cb').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');lapCat=c;}
 function selPrio(el){document.querySelectorAll('.pt-btn').forEach(b=>b.classList.remove('sel'));el.classList.add('sel');lapPrio=el.dataset.p;}
-function kirimLaporan(){
+// ═══ KONFIGURASI API ═══
+// Ganti URL ini dengan URL backend Render kamu setelah deploy
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname.startsWith('192.')
+  ? ''  // lokal: pakai relative path
+  : 'https://GANTI-INI.onrender.com'; // ← ganti dengan URL Render kamu
+
+async function kirimLaporan(){
   if(!lapCat){toast('⚠️ Pilih kategori laporan!','w');return;}
   if(!lapPrio){toast('⚠️ Pilih tingkat prioritas!','w');return;}
   const j=gv('LJ'),i=gv('LI');
   if(!j){toast('⚠️ Judul laporan wajib diisi!','w');document.getElementById('LJ').focus();return;}
   if(!i){toast('⚠️ Detail laporan wajib diisi!','w');document.getElementById('LI').focus();return;}
-  const lap={id:'LAP-'+Date.now(),kategori:lapCat,prioritas:lapPrio,nama:gv('LN')||'Anonim',kontak:gv('LK')||'-',judul:j,isi:i,waktu:new Date().toISOString(),status:'baru'};
-  const ex=JSON.parse(localStorage.getItem('nh_laporan')||'[]');
-  ex.unshift(lap);localStorage.setItem('nh_laporan',JSON.stringify(ex));
-  window.dispatchEvent(new StorageEvent('storage',{key:'nh_laporan',newValue:JSON.stringify(ex)}));
-  toast('✅ Laporan berhasil dikirim! Admin akan segera menangani.');
-  document.querySelectorAll('.cb').forEach(b=>b.classList.remove('sel'));
-  document.querySelectorAll('.pt-btn').forEach(b=>b.classList.remove('sel'));
-  lapCat='';lapPrio='';['LN','LK','LJ','LI'].forEach(id=>document.getElementById(id).value='');
+  const lap={kategori:lapCat,prioritas:lapPrio,nama:gv('LN')||'Anonim',kontak:gv('LK')||'-',judul:j,isi:i};
+  try{
+    const res=await fetch(API_BASE+'/api/laporan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(lap)});
+    if(res.ok){
+      toast('✅ Laporan berhasil dikirim! Admin akan segera menangani.');
+      document.querySelectorAll('.cb').forEach(b=>b.classList.remove('sel'));
+      document.querySelectorAll('.pt-btn').forEach(b=>b.classList.remove('sel'));
+      lapCat='';lapPrio='';['LN','LK','LJ','LI'].forEach(id=>document.getElementById(id).value='');
+    } else { toast('❌ Gagal mengirim laporan. Coba lagi.','e'); }
+  } catch(e){ toast('❌ Tidak dapat terhubung ke server.','e'); }
 }
+
 function toast(msg,type='ok'){
   const t=document.createElement('div');
   t.className='toast'+(type==='w'?' w':type==='e'?' e':'');
@@ -709,45 +718,6 @@ function toast(msg,type='ok'){
   setTimeout(()=>t.remove(),3600);
 }
 
-function applyLS(){
-  try{
-    var raw = localStorage.getItem('nh_data');
-    if(!raw) return;
-    var d = JSON.parse(raw);
-
-    // Kalau maintenance aktif atau ada custom HTML → reload halaman supaya script awal yang handle
-    var customHtml = localStorage.getItem('nh_custom_html');
-    if(d.maintenance || customHtml){ location.reload(); return; }
-
-    // ── Update konten ──
-    var k = d.konten;
-    if(k){
-      var set = function(id, val){ var e = document.getElementById(id); if(e && val !== undefined && val !== '') e.textContent = val; };
-      set('ws-tagline', k.tagline);   set('ws-badge', k.badge);     set('ws-quote', k.quote);
-      set('ws-tahun', k.tahun);       set('ws-alumni', k.alumni);   set('ws-guru', k.guru);     set('ws-lulus', k.lulus);
-      set('ws-berdiri', k.berdiri);   set('ws-deskripsi', k.deskripsi); set('ws-deskripsi2', k.deskripsi2);
-      set('ws-visi', k.visi);         set('ws-misi1', k.misi1);     set('ws-misi2', k.misi2);
-      set('ws-misi3', k.misi3);       set('ws-misi4', k.misi4);
-      set('ws-alamat', k.alamat);     set('ws-telp', k.telp);       set('ws-wa', k.wa);
-      set('ws-jam', k.jam);           set('ws-jamSabtu', k.jamSabtu);
-      if(k.alamat) set('ws-alamat-f', '📍 '+k.alamat);
-      if(k.telp)   set('ws-telp-f',   '📞 '+k.telp);
-      if(k.wa)     set('ws-wa-f',     '💬 '+k.wa);
-    }
-
-    // ── Update pengumuman & marquee ──
-    if(d.pengumuman){
-      var ak = d.pengumuman.filter(function(p){ return p.status === 'Aktif'; });
-      var nl = document.getElementById('NL');
-      if(nl && ak.length) nl.innerHTML = ak.slice(0,4).map(function(p){
-        return '<div class="nit"><div class="nit-tg">'+p.kategori+'</div><h4>'+p.judul+'</h4><div class="nit-dt">📅 '+fd(p.tanggal)+'</div></div>';
-      }).join('');
-      var mt = document.getElementById('MQT');
-      if(mt && ak.length) mt.textContent = ak.map(function(p){ return p.kategori+' '+p.judul; }).join(' — ');
-    }
-  }catch(e){ console.error('applyLS:', e); }
-}
-
 function fd(d){
   if(!d)return'';
   const m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
@@ -755,10 +725,58 @@ function fd(d){
   return`${dt.getDate()} ${m[dt.getMonth()]} ${dt.getFullYear()}`;
 }
 
-window.addEventListener('storage',e=>{
-  if(e.key==='nh_data'||e.key==='nh_custom_html') applyLS();
-});
-applyLS();
+function applyData(d){
+  if(!d) return;
+
+  // ── MAINTENANCE ──
+  if(d.maintenance && d.maintConfig){
+    const m=d.maintConfig;
+    document.body.innerHTML=`<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;background:linear-gradient(135deg,#0c1a10,#1b5e35);min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;padding:20px}.mc{max-width:460px;width:100%}.ico{font-size:56px;margin-bottom:14px}.ar{font-size:20px;color:#f5c518;margin-bottom:10px}.tt{font-size:clamp(20px,4vw,28px);font-weight:700;margin-bottom:6px}.sb{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:#f5c518;margin-bottom:20px}.mb{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;word-break:break-word}.eta{display:inline-flex;align-items:center;gap:8px;background:rgba(201,146,10,.15);border:1px solid rgba(201,146,10,.3);border-radius:20px;padding:7px 18px;font-size:13px;color:#f5c518}.bar{width:100%;height:3px;background:rgba(255,255,255,.1);border-radius:2px;margin:16px 0;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(to right,#2e7d4f,#f5c518);animation:pg 3s ease-in-out infinite alternate}@keyframes pg{from{width:40%}to{width:80%}}.ct{font-size:11px;color:rgba(255,255,255,.35);margin-top:10px}</style><div class="mc"><div class="ico">🔧</div><div class="ar">بِسْمِ اللّٰهِ</div><div class="tt">Sedang Dalam Pemeliharaan</div><div class="sb">Nurul Hasanah · Maintenance</div><div class="mb"><div style="color:rgba(255,255,255,.85);margin-bottom:6px">${m.msgId||''}</div><div style="font-size:12px;color:rgba(255,255,255,.4);font-style:italic">${m.msgEn||''}</div></div><div class="eta">⏱️ ${m.eta||''}</div><div class="bar"><div class="bar-fill"></div></div><div class="ct">Hubungi: ${m.contact||''}</div></div>`;
+    return;
+  }
+
+  // ── CUSTOM HTML ──
+  if(d.customHtml){
+    document.open(); document.write(d.customHtml); document.close(); return;
+  }
+
+  // ── UPDATE KONTEN ──
+  const k=d.konten;
+  if(k){
+    const set=(id,val)=>{const e=document.getElementById(id);if(e&&val)e.textContent=val;};
+    set('ws-tagline',k.tagline); set('ws-badge',k.badge); set('ws-quote',k.quote);
+    set('ws-tahun',k.tahun); set('ws-alumni',k.alumni); set('ws-guru',k.guru); set('ws-lulus',k.lulus);
+    set('ws-berdiri',k.berdiri); set('ws-deskripsi',k.deskripsi); set('ws-deskripsi2',k.deskripsi2);
+    set('ws-visi',k.visi); set('ws-misi1',k.misi1); set('ws-misi2',k.misi2);
+    set('ws-misi3',k.misi3); set('ws-misi4',k.misi4);
+    set('ws-alamat',k.alamat); set('ws-telp',k.telp); set('ws-wa',k.wa);
+    set('ws-jam',k.jam); set('ws-jamSabtu',k.jamSabtu);
+    if(k.alamat) set('ws-alamat-f','📍 '+k.alamat);
+    if(k.telp)   set('ws-telp-f','📞 '+k.telp);
+    if(k.wa)     set('ws-wa-f','💬 '+k.wa);
+  }
+
+  // ── UPDATE PENGUMUMAN ──
+  if(d.pengumuman){
+    const ak=d.pengumuman.filter(p=>p.status==='Aktif');
+    const nl=document.getElementById('NL');
+    if(nl&&ak.length) nl.innerHTML=ak.slice(0,4).map(p=>`<div class="nit"><div class="nit-tg">${p.kategori}</div><h4>${p.judul}</h4><div class="nit-dt">📅 ${fd(p.tanggal)}</div></div>`).join('');
+    const mt=document.getElementById('MQT');
+    if(mt&&ak.length) mt.textContent=ak.map(p=>`${p.kategori} ${p.judul}`).join(' — ');
+  }
+}
+
+// Ambil data dari server lalu apply
+async function loadFromServer(){
+  try{
+    const res=await fetch(API_BASE+'/api/data');
+    if(res.ok){ const d=await res.json(); applyData(d); }
+  }catch(e){ console.log('Server tidak terhubung, mode offline.'); }
+}
+
+// Poll tiap 10 detik supaya perubahan admin langsung kelihatan di semua device
+loadFromServer();
+setInterval(loadFromServer, 10000);
 </script>
 </body>
-</html>
+  </html>
